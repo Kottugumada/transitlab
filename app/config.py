@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     # a reasonable starting point; override per-target when transit duration is known.
     detrend_window_factor: int = 101  # Savitzky-Golay window (must be odd)
 
+    # Hunt BLS grid parameters (§6.2)
+    # 2000 frequencies spans 0.5–50 d at Kepler-baseline resolution (1/1461 d⁻¹);
+    # too few → peaks aliased, too many → 10+ min per target.
+    hunt_n_periods: int = 2000
+    # Cap at half the Kepler baseline; periods above this have < 3 transits.
+    hunt_period_max_days: float = 50.0
+    # Period recovery tolerance: BLS period is "recovered" if within this fraction
+    # of the archive period (or its half / double alias).
+    hunt_recovery_tolerance: float = 0.01     # 1% — same as injection_period_tolerance
+
     # Synthetic injection recovery thresholds (§6.1)
     injection_period_tolerance: float = 0.01   # 1% period recovery
     injection_depth_tolerance: float = 0.25    # 25% depth recovery

@@ -27,10 +27,11 @@ from app.engine.fit import fit_trapezoid, _trapezoid
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-# Constants matching the fixture generator
+# Constants matching the fixture generator (see tests/fixtures/generate_synthetic.py)
 CADENCE_DAYS = 29.4 / 60 / 24
 NOISE_PPM = 200.0
 INJ_PERIOD = 5.0          # days
+INJ_EPOCH_BKJD = 121.3   # T0_BKJD + 1.3; first transit mid-time in fixture
 INJ_DEPTH_PPM = 1500.0
 INJ_DURATION_H = 2.0      # hours
 INJ_DURATION_DAYS = INJ_DURATION_H / 24.0
@@ -234,13 +235,18 @@ def test_bin_fold_transit_visible():
 # ── fit_trapezoid() ───────────────────────────────────────────────────────────
 
 def test_fit_recovers_depth():
-    """Trapezoid fit depth should be within 10% of the injected 1500 ppm."""
-    tc, df, de = _planet_lc()
-    result = run_bls(tc, df, de, period_min=0.5, period_max=30.0)
-    phase, fph, fe = phase_fold(tc, df, de, result["period"], result["epoch"])
-    centers, bf, be = bin_fold(phase, fph, fe, n_bins=100)
+    """Trapezoid fit depth should be within 10% of the injected 1500 ppm.
 
-    duration_frac = result["duration_days"] / result["period"]
+    Uses the exact injected period and epoch (not BLS output) to isolate
+    fit accuracy from BLS accuracy. BLS accuracy is tested separately.
+    n_bins=200 gives ~3.3 bins per 2-hour transit; at 100 bins the transit
+    spans only 1.67 bins and bin-boundary alignment can dilute depth by >20%.
+    """
+    tc, df, de = _planet_lc()
+    phase, fph, fe = phase_fold(tc, df, de, INJ_PERIOD, INJ_EPOCH_BKJD)
+    centers, bf, be = bin_fold(phase, fph, fe, n_bins=200)
+
+    duration_frac = INJ_DURATION_DAYS / INJ_PERIOD
     fit = fit_trapezoid(centers, bf, be, duration_frac)
 
     assert fit["success"], "Trapezoid fit did not converge"

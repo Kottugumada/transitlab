@@ -69,9 +69,62 @@ def run_train(args) -> None:
 
 
 def run_hunt(args) -> None:
-    # Implemented in Step 6
-    log.error("'hunt' job not yet implemented (Step 6)")
-    sys.exit(1)
+    from app.config import settings
+    from app.db import SessionLocal
+    from app.hunt import run_hunt_batch, period_recovered
+
+    db = SessionLocal()
+    try:
+        summary = run_hunt_batch(db, settings, force=args.force_refresh)
+    finally:
+        db.close()
+
+    results = summary["results"]
+    n_error = summary["n_error"]
+
+    if not results:
+        print("\nNo targets processed.")
+        return
+
+    n_recovered = sum(1 for r in results if r.get("recovered"))
+    n_exact = sum(1 for r in results if r.get("alias") == "exact")
+    n_half = sum(1 for r in results if r.get("alias") == "half")
+    n_double = sum(1 for r in results if r.get("alias") == "double")
+    n_processed = len(results)
+    rate = 100.0 * n_recovered / n_processed if n_processed else 0.0
+
+    print(f"\n── Hunt Batch Results (run {summary['hunt_run_id']}) ─────────────────────────")
+    print(f"Targets processed  : {n_processed}")
+    print(f"Recovered (±{settings.hunt_recovery_tolerance*100:.0f}%)   "
+          f": {n_recovered} / {n_processed}  ({rate:.1f}%)")
+    print(f"  exact            : {n_exact}")
+    print(f"  half-period (*)  : {n_half}")
+    print(f"  double-period (*): {n_double}")
+    print(f"Errors (LC/BLS)    : {n_error}")
+    print(f"Not recovered      : {n_processed - n_recovered - n_error}")
+
+    # Recovery table: all results sorted by BLS SNR descending
+    valid = [r for r in results if r.get("bls_period") is not None]
+    valid.sort(key=lambda r: r.get("bls_snr") or 0.0, reverse=True)
+
+    if valid:
+        print(f"\n── Period Recovery Table (top {min(len(valid), 30)} by BLS SNR) ───────────────")
+        print(f"{'kepoi_name':<12}  {'archive_P':>9}  {'bls_P':>9}  {'SNR':>6}  "
+              f"{'model_p':>7}  {'recovered':<11}  alias")
+        print("─" * 72)
+        for r in valid[:30]:
+            arch = f"{r['archive_period']:.4f} d" if r["archive_period"] else "  —"
+            bls = f"{r['bls_period']:.4f} d" if r["bls_period"] else "  —"
+            snr = f"{r['bls_snr']:.1f}" if r["bls_snr"] is not None else "  —"
+            sc = f"{r['score']:.3f}" if r.get("score") is not None else "   —"
+            rec = "YES" if r["recovered"] else "no"
+            al = r.get("alias") or "—"
+            al_sfx = " (*)" if al in ("half", "double") else "    "
+            print(f"{r['kepoi_name']:<12}  {arch:>9}  {bls:>9}  {snr:>6}  "
+                  f"{sc:>7}  {rec:<11}  {al}{al_sfx}")
+        print("─" * 72)
+
+    print()
 
 
 def run_predict(args) -> None:

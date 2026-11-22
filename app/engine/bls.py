@@ -58,7 +58,14 @@ def run_bls(
             f"(baseline = {baseline:.1f} d).  Need at least 2 transits."
         )
 
-    periods = np.linspace(period_min, period_max, n_periods) * u.day
+    # Uniform FREQUENCY grid — not uniform period grid.
+    # A uniform period grid undersamples short periods: at P=5 d over a 1461-d
+    # baseline the required frequency step is P²/T ≈ 0.017 d, but a linear
+    # 2000-point grid from 0.5–50 d has step=0.025 d → misses the peak, pushing
+    # BLS to find the 4P harmonic where the grid is denser.
+    # Reversing to frequency space gives equal resolution at every period.
+    freqs = np.linspace(1.0 / period_max, 1.0 / period_min, n_periods)
+    periods = (1.0 / freqs[::-1]) * u.day  # ascending period order
     durations = _DURATION_FRACS  # fractions; BLS accepts unitless fractions
 
     model = BoxLeastSquares(time * u.day, flux, dy=flux_err)
