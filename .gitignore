@@ -1,0 +1,33 @@
+# Environment
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Data cache (re-fetchable from MAST/TAP)
+data/cache/
+
+# Models (too large; tracked via MODEL_CARD.md + joblib in releases)
+models/*.joblib
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/

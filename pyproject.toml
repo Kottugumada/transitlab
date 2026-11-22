@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transitlab"
+version = "0.1.0"
+description = "Exoplanet transit photometry platform"
+requires-python = ">=3.12"
+dependencies = [
+    # Astronomy / data
+    "lightkurve>=2.4.2",
+    "astropy>=6.1",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "scipy>=1.13",
+
+    # ML
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+
+    # Web
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",           # async HTTP client + test client
+
+    # Database
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg2-binary>=2.9",
+    "psycopg[binary]>=3.1",          # psycopg3: needed by SQLAlchemy 2 default postgresql:// dialect
+
+    # Config / utilities
+    "python-dotenv>=1.0",
+    "pydantic-settings>=2.3",
+
+    # Plotting (server-side fold plots)
+    "matplotlib>=3.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "alembic*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
