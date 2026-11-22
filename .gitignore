@@ -17,8 +17,8 @@ dist/
 # Data cache (re-fetchable from MAST/TAP)
 data/cache/
 
-# Models (too large; tracked via MODEL_CARD.md + joblib in releases)
-models/*.joblib
+# Models are committed (1-2 MB each, within reasonable git bounds)
+# Regenerate with: python -m app.batch --job train
 
 # Test artifacts
 .pytest_cache/

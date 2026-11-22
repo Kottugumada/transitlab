@@ -41,9 +41,31 @@ def run_sync(args) -> None:
 
 
 def run_train(args) -> None:
-    # Implemented in Step 3
-    log.error("'train' job not yet implemented (Step 3)")
-    sys.exit(1)
+    from app.train import run_training
+    from app.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        result = run_training(db)
+    finally:
+        db.close()
+
+    hm = result["honest_metrics"]
+    am = result["all_metrics"]
+    bs = result["baseline_snr"]
+    bm = result["baseline_majority"]
+
+    print("\n── Classifier Training Results ─────────────────────────────")
+    print(f"Train / test split : {result['n_train']} / {result['n_test']}")
+    print(f"{'Model':<35} {'ROC-AUC':>8} {'Rec@FPR0.1':>11} {'Prec-top100':>12}")
+    print(f"{'─'*35} {'─'*8} {'─'*11} {'─'*12}")
+    for m in [bm, bs, hm, am]:
+        p = f"{m['precision_top100']:.4f}" if m.get("precision_top100") else "    —   "
+        print(f"{m['label']:<35} {m['roc_auc']:>8.4f} {m['recall_at_fpr01']:>11.4f} {p:>12}")
+    print(f"\nLeakage gap (all − honest):  AUC {am['roc_auc']-hm['roc_auc']:+.4f}  "
+          f"recall@FPR0.1 {am['recall_at_fpr01']-hm['recall_at_fpr01']:+.4f}")
+    print(f"Model saved: {result['honest_model_path']}")
+    print("────────────────────────────────────────────────────────────\n")
 
 
 def run_hunt(args) -> None:
