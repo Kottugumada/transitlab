@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TransitLab — Explorer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a22;
+      --border: #2a2a3a;
+      --text: #e8e8f0;
+      --muted: #888;
+      --accent: #6e9fff;
+      --transit: #ff6b6b;
+      --good: #51cf66;
+      --warn: #ffd43b;
+      --bad: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      min-height: 100vh;
+    }
+    h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+    h1 a { color: var(--text); text-decoration: none; }
+    h1 a:hover { text-decoration: underline; }
+    .tagline { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+
+    .search-row {
+      display: flex; gap: 0.5rem; margin-bottom: 2rem; align-items: center;
+    }
+    .search-row input {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text);
+      padding: 0.55rem 0.9rem; border-radius: 6px; font-size: 1rem; width: 200px;
+    }
+    .search-row button {
+      background: var(--accent); color: #000; border: none; padding: 0.55rem 1.1rem;
+      border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: 600;
+    }
+    .search-row button:hover { opacity: 0.85; }
+
+    #status { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; min-height: 1.2em; }
+    #status.error { color: var(--bad); }
+
+    .meta-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.75rem; margin-bottom: 2rem;
+    }
+    .meta-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.75rem 1rem;
+    }
+    .meta-card .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta-card .value { font-size: 1.1rem; font-weight: 600; margin-top: 0.2rem; }
+    .disposition-CONFIRMED { color: var(--good); }
+    .disposition-CANDIDATE  { color: var(--warn); }
+    .disposition-FALSE      { color: var(--bad); }
+
+    .chart-wrap {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1.5rem; margin-bottom: 2rem; position: relative;
+    }
+    .chart-title { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.75rem; }
+    canvas { width: 100% !important; }
+
+    .vetting-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.6rem; margin-bottom: 2rem;
+    }
+    .vetting-item {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.6rem 0.9rem; display: flex; justify-content: space-between; align-items: center;
+    }
+    .vetting-item .key { font-size: 0.8rem; color: var(--muted); }
+    .vetting-item .val { font-size: 0.95rem; font-weight: 600; }
+    .flag-ok   { color: var(--good); }
+    .flag-warn { color: var(--warn); }
+    .flag-bad  { color: var(--bad); }
+
+    #main { display: none; }
+  </style>
+</head>
+<body>
+  <h1><a href="/">TransitLab</a></h1>
+  <p class="tagline">Phase-folded light curve explorer</p>
+
+  <div class="search-row">
+    <input id="koi-input" type="text" placeholder="K00001.01" spellcheck="false">
+    <button onclick="loadKoi()">Load</button>
+  </div>
+
+  <div id="status">Enter a KOI name (e.g. K00001.01) and click Load.</div>
+
+  <div id="main">
+    <div class="meta-grid" id="meta-grid"></div>
+    <div class="chart-wrap">
+      <div class="chart-title">Phase-folded light curve (binned) — transit at phase 0</div>
+      <canvas id="lc-chart"></canvas>
+    </div>
+    <div class="vetting-grid" id="vetting-grid"></div>
+  </div>
+
+  <script>
+    let chart = null;
+
+    // Pre-fill from ?kepoi= query param
+    const params = new URLSearchParams(location.search);
+    const initKoi = params.get("kepoi");
+    if (initKoi) {
+      document.getElementById("koi-input").value = initKoi;
+      loadKoi();
+    }
+
+    function setStatus(msg, isError = false) {
+      const el = document.getElementById("status");
+      el.textContent = msg;
+      el.className = isError ? "error" : "";
+    }
+
+    async function loadKoi() {
+      const koi = document.getElementById("koi-input").value.trim();
+      if (!koi) { setStatus("Please enter a KOI name.", true); return; }
+
+      setStatus(`Loading ${koi} …`);
+      document.getElementById("main").style.display = "none";
+
+      try {
+        const res = await fetch(`/api/v1/explorer/${encodeURIComponent(koi)}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(err.detail || res.statusText);
+        }
+        const data = await res.json();
+        renderResult(data);
+        setStatus("");
+        document.getElementById("main").style.display = "block";
+        // Update URL without reload
+        history.replaceState(null, "", `?kepoi=${encodeURIComponent(koi)}`);
+      } catch (e) {
+        setStatus(`Error: ${e.message}`, true);
+      }
+    }
+
+    document.getElementById("koi-input").addEventListener("keydown", e => {
+      if (e.key === "Enter") loadKoi();
+    });
+
+    function renderResult(d) {
+      // ── Metadata cards ────────────────────────────────────────────────
+      const disp = d.disposition || "UNKNOWN";
+      const dispClass = disp.includes("CONFIRMED") ? "CONFIRMED"
+                      : disp.includes("CANDIDATE") ? "CANDIDATE" : "FALSE";
+      const cards = [
+        { label: "KOI", value: d.kepoi_name },
+        { label: "Kepler name", value: d.kepler_name || "—" },
+        { label: "Disposition", value: disp, cls: `disposition-${dispClass}` },
+        { label: "Period", value: `${d.period.toFixed(5)} d` },
+        { label: "Duration", value: `${(d.duration_days * 24).toFixed(2)} h` },
+        { label: "Archive depth", value: d.depth_ppm != null ? `${d.depth_ppm.toFixed(0)} ppm` : "—" },
+        { label: "Fit depth", value: d.fit.fit_depth_ppm != null ? `${d.fit.fit_depth_ppm.toFixed(0)} ppm` : "—" },
+        { label: "Shape ratio", value: d.fit.shape_ratio != null ? d.fit.shape_ratio.toFixed(2) : "—" },
+        { label: "Cadences", value: `${d.n_cadences_clean.toLocaleString()} clean` },
+      ];
+      document.getElementById("meta-grid").innerHTML = cards.map(c =>
+        `<div class="meta-card"><div class="label">${c.label}</div>
+         <div class="value ${c.cls || ''}">${c.value}</div></div>`
+      ).join("");
+
+      // ── Phase-folded light curve chart ────────────────────────────────
+      const phase = d.fold_data.phase;
+      const flux  = d.fold_data.flux;
+
+      const points = phase.map((p, i) => ({
+        x: p,
+        y: flux[i] != null ? (1 - flux[i]) * 1e6 : null,  // depth in ppm (transit dips UP)
+      })).filter(pt => pt.y != null);
+
+      if (chart) { chart.destroy(); chart = null; }
+      chart = new Chart(document.getElementById("lc-chart"), {
+        type: "scatter",
+        data: {
+          datasets: [{
+            label: "Relative depth (ppm)",
+            data: points,
+            pointRadius: 3,
+            pointBackgroundColor: "rgba(110,159,255,0.8)",
+            showLine: true,
+            borderColor: "rgba(110,159,255,0.6)",
+            borderWidth: 1.5,
+            tension: 0.2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 3,
+          scales: {
+            x: {
+              title: { display: true, text: "Phase", color: "#888" },
+              min: -0.5, max: 0.5,
+              grid: { color: "rgba(255,255,255,0.05)" },
+              ticks: { color: "#888" },
+            },
+            y: {
+              title: { display: true, text: "Depth (ppm)", color: "#888" },
+              grid: { color: "rgba(255,255,255,0.05)" },
+              ticks: { color: "#888" },
+              // Invert: positive = deeper transit (dip shown as peak)
+              reverse: false,
+            },
+          },
+          plugins: {
+            legend: { display: false },
+            annotation: undefined,
+            tooltip: {
+              callbacks: {
+                label: ctx => `phase: ${ctx.parsed.x.toFixed(4)},  depth: ${ctx.parsed.y.toFixed(1)} ppm`,
+              },
+            },
+          },
+        },
+      });
+
+      // ── Vetting features ───────────────────────────────────────────────
+      const v = d.vetting;
+      const vetItems = [
+        { key: "bls_snr",             label: "BLS SNR",          fmt: v => v.toFixed(1),  flag: v => v > 7 ? "ok" : v > 3 ? "warn" : "bad" },
+        { key: "odd_even_sigma",      label: "Odd/even σ",        fmt: v => v.toFixed(2),  flag: v => v < 3 ? "ok" : v < 5 ? "warn" : "bad" },
+        { key: "secondary_depth_ppm", label: "Secondary depth",   fmt: v => `${v.toFixed(0)} ppm`, flag: v => v < 500 ? "ok" : v < 1500 ? "warn" : "bad" },
+        { key: "shape_ratio",         label: "Shape ratio",       fmt: v => v.toFixed(2),  flag: v => v < 0.5 ? "ok" : v < 0.8 ? "warn" : "bad" },
+        { key: "n_transits",          label: "N transits",        fmt: v => v.toFixed(0),  flag: v => v >= 3 ? "ok" : v >= 2 ? "warn" : "bad" },
+        { key: "depth_scatter",       label: "Depth scatter",     fmt: v => v.toFixed(3),  flag: v => v < 0.3 ? "ok" : v < 0.6 ? "warn" : "bad" },
+        { key: "fit_depth_sigma",     label: "Fit depth σ",       fmt: v => v.toFixed(1),  flag: v => v > 10 ? "ok" : v > 5 ? "warn" : "bad" },
+      ];
+      document.getElementById("vetting-grid").innerHTML = vetItems.map(item => {
+        const val = v[item.key];
+        if (val == null) return `<div class="vetting-item"><span class="key">${item.label}</span><span class="val">—</span></div>`;
+        const flagClass = `flag-${item.flag(val)}`;
+        return `<div class="vetting-item">
+          <span class="key">${item.label}</span>
+          <span class="val ${flagClass}">${item.fmt(val)}</span>
+        </div>`;
+      }).join("");
+    }
+  </script>
+</body>
+</html>
