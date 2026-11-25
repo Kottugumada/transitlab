@@ -64,9 +64,9 @@ def _gate1_from_db() -> list[dict]:
             seen_kepids.add(tgt.kepid)
             arch_period = koi.period if koi else None
             arch_depth = koi.depth if koi else None
-            rec, alias = (
+            rec, alias, _corr = (
                 period_recovered(det.period, arch_period)
-                if arch_period and det.period else (False, None)
+                if arch_period and det.period else (False, None, det.period)
             )
             results.append({
                 "kepoi_name": koi.kepoi_name if koi else f"KIC{tgt.kepid}",
@@ -179,7 +179,7 @@ def _gate1_diverse_sample() -> list[dict]:
             continue
 
         bls = pipe["bls"]
-        rec, alias = period_recovered(bls["period"], koi.period)
+        rec, alias, _corr = period_recovered(bls["period"], koi.period)
         log.info(
             "%s  arch=%.4fd  bls=%.4fd  snr=%.1f  recovered=%s(%s)",
             koi.kepoi_name, koi.period, bls["period"], bls.get("snr", 0),

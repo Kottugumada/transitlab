@@ -1,7 +1,7 @@
 # TransitLab Model Card
 
-**Trained:** 2026-11-22 05:40 UTC
-**Data snapshot:** 2026-11-22
+**Trained:** 2026-11-25 22:52 UTC
+**Data snapshot:** 2026-11-25
 **Algorithm:** HistGradientBoostingClassifier (scikit-learn)
   - Chosen over GradientBoostingClassifier: handles NaN natively, faster on ~8k rows.
   - Chosen over RandomForest: GBM consistently outperforms RF on tabular data with

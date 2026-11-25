@@ -50,42 +50,47 @@ def _make_settings(tmp_path=None, **overrides):
 # ── period_recovered unit tests ───────────────────────────────────────────────
 
 def test_period_recovered_exact():
-    rec, alias = period_recovered(5.000, 5.000)
+    rec, alias, corrected = period_recovered(5.000, 5.000)
     assert rec is True
     assert alias == "exact"
+    assert abs(corrected - 5.000) < 0.001
 
 
 def test_period_recovered_exact_within_tolerance():
     # 0.5% off — within the 1% default tolerance
-    rec, alias = period_recovered(5.025, 5.000)
+    rec, alias, corrected = period_recovered(5.025, 5.000)
     assert rec is True
     assert alias == "exact"
 
 
 def test_period_recovered_half():
     # BLS finds P/2 — common aliasing for grazing EBs
-    rec, alias = period_recovered(2.5, 5.0)
+    rec, alias, corrected = period_recovered(2.5, 5.0)
     assert rec is True
     assert alias == "half"
+    # corrected period should restore ~5 d
+    assert abs(corrected - 5.0) / 5.0 < 0.01
 
 
 def test_period_recovered_double():
     # BLS finds 2P
-    rec, alias = period_recovered(10.0, 5.0)
+    rec, alias, corrected = period_recovered(10.0, 5.0)
     assert rec is True
     assert alias == "double"
+    assert abs(corrected - 5.0) / 5.0 < 0.01
 
 
 def test_period_not_recovered():
     # BLS finds a completely different period
-    rec, alias = period_recovered(3.14, 5.0)
+    rec, alias, corrected = period_recovered(3.14, 5.0)
     assert rec is False
     assert alias is None
+    assert corrected == 3.14  # unchanged when not recovered
 
 
 def test_period_recovered_respects_tolerance():
     # 2% off — outside the 1% default tolerance
-    rec, _ = period_recovered(5.11, 5.0, tolerance=0.01)
+    rec, _, _c = period_recovered(5.11, 5.0, tolerance=0.01)
     assert rec is False
 
 
@@ -107,7 +112,7 @@ def test_hunt_pipeline_on_planet_fixture():
     bls = result["bls"]
     assert bls["period"] is not None
     # BLS should recover ~5 d period (within 5% for a short grid)
-    rec, _ = period_recovered(bls["period"], 5.0, tolerance=0.05)
+    rec, _, _c = period_recovered(bls["period"], 5.0, tolerance=0.05)
     assert rec, f"Expected ~5 d period, got {bls['period']:.4f} d"
 
 

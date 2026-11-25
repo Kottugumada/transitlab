@@ -102,17 +102,20 @@ def period_recovered(
     """
     # Check the period itself plus common BLS harmonics: ×2, ×3, ×4 (aliases
     # where only every Nth transit falls in the BLS window) and their sub-aliases.
-    for alias, name in [
+    # alias_factor is the fraction such that bls_period ≈ archive_period × alias_factor.
+    # corrected_period = bls_period / alias_factor restores the true period.
+    for alias_factor, name in [
         (1.0, "exact"),
         (0.5, "half"),    (2.0, "double"),
         (3.0, "triple"),  (4.0, "quadruple"),
         (0.333, "third"), (0.25, "quarter"),
         (0.2, "fifth"),   (0.167, "sixth"),
     ]:
-        ref = archive_period * alias
+        ref = archive_period * alias_factor
         if abs(bls_period - ref) / ref < tolerance:
-            return True, name
-    return False, None
+            corrected = bls_period / alias_factor
+            return True, name, corrected
+    return False, None, bls_period
 
 
 # ── Catalogue classifier scoring ──────────────────────────────────────────────
@@ -209,7 +212,7 @@ def run_hunt_batch(
                 .first()
             )
             if existing:
-                rec, alias = period_recovered(
+                rec, alias, _corrected = period_recovered(
                     existing.period, koi.period, settings.hunt_recovery_tolerance
                 )
                 results.append({
@@ -296,10 +299,21 @@ def run_hunt_batch(
         fit = pipe["fit"]
         n_tr = vetting.get("n_transits")
 
+        # Correct the stored period: if BLS found a harmonic alias of the archive
+        # period, store the corrected period (bls_period / alias_factor) so the
+        # Candidates page shows the true period rather than e.g. P/6.
+        bls_period_raw = bls.get("period")
+        if bls_period_raw and koi.period:
+            _rec, _alias, stored_period = period_recovered(
+                bls_period_raw, koi.period, settings.hunt_recovery_tolerance
+            )
+        else:
+            stored_period = bls_period_raw
+
         detection = Detection(
             target_id=target.target_id,
             run_id=hunt_run.id,
-            period=bls.get("period"),
+            period=stored_period,
             epoch_bjd=bls.get("epoch"),
             duration_h=(bls["duration_days"] * 24) if bls.get("duration_days") is not None else None,
             depth_ppm=bls.get("depth_ppm"),
@@ -323,14 +337,14 @@ def run_hunt_batch(
         n_completed += 1
         db.commit()
 
-        # Period recovery check
-        rec, alias = period_recovered(
-            bls["period"], koi.period, settings.hunt_recovery_tolerance
+        # Period recovery check (uses raw BLS period for alias detection)
+        rec, alias, _corr = period_recovered(
+            bls_period_raw, koi.period, settings.hunt_recovery_tolerance
         )
         log.info(
-            "%s KIC %d  arch=%.4fd  bls=%.4fd  snr=%.1f  recovered=%s(%s)  score=%s",
+            "%s KIC %d  arch=%.4fd  bls=%.4fd→%.4fd  snr=%.1f  recovered=%s(%s)  score=%s",
             koi.kepoi_name, koi.kepid,
-            koi.period, bls["period"], bls.get("snr", 0.0),
+            koi.period, bls_period_raw, stored_period, bls.get("snr", 0.0),
             rec, alias,
             f"{score:.3f}" if score is not None else "—",
         )
@@ -340,7 +354,7 @@ def run_hunt_batch(
             "kepid": koi.kepid,
             "disposition": koi.disposition,
             "archive_period": koi.period,
-            "bls_period": bls["period"],
+            "bls_period": stored_period,
             "bls_snr": bls.get("snr"),
             "recovered": rec,
             "alias": alias,
