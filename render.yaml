@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: transitlab
+    runtime: python
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false   # set manually in Render dashboard — paste your Neon connection string
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+    healthCheckPath: /api/v1/health
