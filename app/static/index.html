@@ -6,52 +6,328 @@
   <title>TransitLab</title>
   <style>
     :root {
-      --bg: #0f0f13; --surface: #1a1a22; --border: #2a2a3a;
-      --text: #e8e8f0; --muted: #888; --accent: #6e9fff;
+      --bg: #0f0f13;
+      --surface: #1a1a22;
+      --surface2: #20202e;
+      --border: #2a2a3a;
+      --text: #e8e8f0;
+      --muted: #888;
+      --muted2: #666;
+      --accent: #6e9fff;
+      --accent-dim: #3a5a99;
+      --good: #51cf66;
+      --warn: #ffd43b;
+      --bad: #ff6b6b;
     }
-    * { box-sizing: border-box; }
-    body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 2rem 1.5rem; min-height: 100vh; }
-    h1 { margin: 0 0 0.3rem; font-size: 2rem; }
-    .tagline { color: var(--muted); margin-bottom: 2.5rem; }
-    .nav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2.5rem; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; }
+
+    /* ── Layout ── */
+    .container { max-width: 860px; margin: 0 auto; padding: 0 1.5rem; }
+    section { padding: 3rem 0; border-top: 1px solid var(--border); }
+    section:first-of-type { border-top: none; }
+
+    /* ── Hero ── */
+    .hero { padding: 3.5rem 0 2.5rem; }
+    .hero h1 { font-size: 2.4rem; letter-spacing: -0.5px; margin-bottom: 0.4rem; }
+    .hero h1 span { color: var(--accent); }
+    .hero .tagline { color: var(--muted); font-size: 1.05rem; margin-bottom: 2rem; }
+    .status-bar { font-size: 0.8rem; color: var(--muted2); padding: 0.6rem 0.9rem; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; display: inline-block; }
+    .status-bar span { color: var(--text); }
+
+    /* ── Nav cards ── */
+    .nav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; padding: 2rem 0 0; }
     .nav-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
       padding: 1.25rem 1.5rem; text-decoration: none; color: var(--text);
       transition: border-color 0.15s, background 0.15s; display: block;
     }
     .nav-card:hover { border-color: var(--accent); background: #22223a; }
-    .nav-card .title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 0.4rem; }
-    .nav-card .desc { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
-    .health { font-size: 0.82rem; color: var(--muted); }
-    .health span { color: var(--text); }
-    footer { margin-top: 3rem; color: #555; font-size: 0.8rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+    .nav-card .title { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: 0.4rem; }
+    .nav-card .desc { font-size: 0.83rem; color: var(--muted); line-height: 1.5; }
+
+    /* ── Prose sections ── */
+    h2 { font-size: 1.3rem; margin-bottom: 1rem; color: var(--text); }
+    h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text); }
+    p { color: var(--muted); font-size: 0.92rem; margin-bottom: 0.9rem; }
+    p:last-child { margin-bottom: 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Pipeline steps ── */
+    .pipeline { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 1.25rem 0; }
+    .step {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+      padding: 0.6rem 1rem; font-size: 0.82rem;
+    }
+    .step .num { color: var(--accent); font-weight: 700; margin-right: 0.4rem; }
+    .arrow { color: var(--border); font-size: 1.1rem; }
+
+    /* ── Data sources ── */
+    .sources { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.25rem; }
+    @media (max-width: 540px) { .sources { grid-template-columns: 1fr; } }
+    .source-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; }
+    .source-card h3 { font-size: 0.9rem; color: var(--accent); margin-bottom: 0.4rem; }
+    .source-card p { font-size: 0.82rem; margin: 0; }
+
+    /* ── Tool guide ── */
+    .tool-list { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.25rem; }
+    .tool-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; }
+    .tool-item .tool-name { font-size: 0.95rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem; }
+    .tool-item p { font-size: 0.84rem; margin: 0; }
+    .tool-item ol, .tool-item ul { color: var(--muted); font-size: 0.84rem; padding-left: 1.3rem; margin-top: 0.4rem; }
+    .tool-item li { margin-bottom: 0.25rem; }
+
+    /* ── Release notes ── */
+    .relnotes { display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1.25rem; }
+    .release { border-left: 3px solid var(--accent-dim); padding-left: 1.25rem; }
+    .release .ver { font-size: 0.95rem; font-weight: 700; color: var(--accent); }
+    .release .date { font-size: 0.8rem; color: var(--muted2); margin-left: 0.5rem; }
+    .release ul { color: var(--muted); font-size: 0.84rem; padding-left: 1.2rem; margin-top: 0.6rem; }
+    .release li { margin-bottom: 0.3rem; }
+    .release .verdict { font-size: 0.8rem; }
+    .verdict .pass { color: var(--good); }
+    .verdict .partial { color: var(--warn); }
+
+    /* ── Caveat box ── */
+    .caveat { background: var(--surface2); border: 1px solid #3a3a2a; border-radius: 8px; padding: 0.9rem 1.1rem; font-size: 0.83rem; color: var(--muted); margin-top: 1.25rem; }
+    .caveat strong { color: var(--warn); }
+
+    /* ── Footer ── */
+    footer { border-top: 1px solid var(--border); padding: 1.5rem 0; color: var(--muted2); font-size: 0.78rem; }
+    footer a { color: var(--muted); }
   </style>
 </head>
 <body>
-  <h1>TransitLab</h1>
-  <p class="tagline">Exoplanet transit search &amp; vetting — powered by NASA Kepler/TESS data</p>
+<div class="container">
 
-  <div class="nav-grid">
-    <a href="/candidates" class="nav-card">
-      <div class="title">Candidates</div>
-      <div class="desc">Ranked list of transit detections from the BLS hunt. Click any row to open the full vetting page.</div>
-    </a>
-    <a href="/explorer" class="nav-card">
-      <div class="title">Explorer</div>
-      <div class="desc">Look up any confirmed Kepler planet and see its real phase-folded light curve at the archive period.</div>
-    </a>
-    <a href="/backyard" class="nav-card">
-      <div class="title">Backyard Tonight</div>
-      <div class="desc">Known exoplanet transits observable tonight from Morgan Hill, ranked by depth and host brightness.</div>
-    </a>
+  <!-- Hero -->
+  <div class="hero">
+    <h1><span>Transit</span>Lab</h1>
+    <p class="tagline">Exoplanet transit search &amp; vetting — NASA Kepler archive data</p>
+    <div class="status-bar" id="status-bar">Checking system status…</div>
+
+    <div class="nav-grid">
+      <a href="/candidates" class="nav-card">
+        <div class="title">🔭 Candidates</div>
+        <div class="desc">Ranked list of transit detections from the BLS hunt. Click any row to open the full vetting page.</div>
+      </a>
+      <a href="/explorer" class="nav-card">
+        <div class="title">🌐 Explorer</div>
+        <div class="desc">Look up any confirmed Kepler planet and see its real phase-folded light curve at the archive period.</div>
+      </a>
+      <a href="/backyard" class="nav-card">
+        <div class="title">🌙 Backyard Tonight</div>
+        <div class="desc">Known exoplanet transits observable tonight from Morgan Hill, ranked by depth and host brightness.</div>
+      </a>
+    </div>
   </div>
 
-  <div class="health" id="health-row">Checking system status…</div>
+  <!-- What is TransitLab -->
+  <section>
+    <h2>What is TransitLab?</h2>
+    <p>
+      TransitLab is a data pipeline and vetting interface that re-runs transit searches on
+      NASA's Kepler archive. It downloads real stellar brightness measurements, searches them
+      for periodic dips consistent with a planet passing in front of its star, and ranks each
+      candidate using a machine-learning classifier trained on the NASA Exoplanet Archive.
+    </p>
+    <p>
+      Everything here is based on a re-analysis of publicly available data, not new observations.
+      The pipeline is designed to be fully reproducible, $0-cost (GitHub Actions + Neon free-tier
+      Postgres + Render free-tier hosting), and honest about what it can and cannot claim.
+    </p>
+    <div class="caveat">
+      <strong>Important:</strong> Every result is a <em>candidate signal for human vetting</em>.
+      TransitLab never labels anything a "discovered planet." Even high-scoring detections require
+      follow-up spectroscopy, centroid checks, and independent confirmation before any claim is valid.
+    </div>
+  </section>
 
+  <!-- The pipeline -->
+  <section>
+    <h2>How the pipeline works</h2>
+    <div class="pipeline">
+      <div class="step"><span class="num">1</span>Catalogue sync</div>
+      <div class="arrow">→</div>
+      <div class="step"><span class="num">2</span>Fetch light curve</div>
+      <div class="arrow">→</div>
+      <div class="step"><span class="num">3</span>Clean &amp; detrend</div>
+      <div class="arrow">→</div>
+      <div class="step"><span class="num">4</span>BLS period search</div>
+      <div class="arrow">→</div>
+      <div class="step"><span class="num">5</span>Score &amp; store</div>
+    </div>
+
+    <h3>Step 1 — Catalogue sync</h3>
+    <p>
+      The NASA Exoplanet Archive's TAP service is queried for all Kepler Objects of Interest
+      (KOIs) with disposition CONFIRMED. This gives us the archive-measured period, transit
+      depth, stellar parameters, and model SNR for each system — the ground truth we validate
+      against.
+    </p>
+
+    <h3>Step 2 — Fetch light curve</h3>
+    <p>
+      For each target, all available Kepler long-cadence (29.4 min) quarters are downloaded
+      from MAST via Lightkurve, stitched together, and cached locally. The full 4-year Kepler
+      baseline gives ~1461 days of photometry per star.
+    </p>
+
+    <h3>Step 3 — Clean &amp; detrend</h3>
+    <p>
+      Quality-flagged cadences are removed. A Savitzky-Golay filter (window ≈ 2 days) removes
+      instrumental systematics and stellar variability while preserving transit-timescale signals.
+    </p>
+
+    <h3>Step 4 — BLS period search</h3>
+    <p>
+      Box Least Squares (BLS) scans a uniform frequency grid from 0.75 d to 50 d using 2000
+      trial periods. The best-fit box gives period, epoch, duration, depth, and SNR. When BLS
+      locks onto a harmonic of the true period (a common aliasing effect), the pipeline
+      detects the alias relationship and corrects the stored period back to the true value.
+    </p>
+
+    <h3>Step 5 — Score &amp; store</h3>
+    <p>
+      An honest-features classifier (scikit-learn HistGradientBoosting, 13 catalogue features)
+      trained on KOI dispositions assigns each detection a planet-likelihood score 0–1.
+      "Honest" means it uses only features measurable from the archive catalogue — no features
+      derived from the light curve itself — which eliminates leakage across the train/test split.
+      The Detection record (period, epoch, depth, SNR, fold data, score) is written to Postgres.
+    </p>
+  </section>
+
+  <!-- The data -->
+  <section>
+    <h2>The data</h2>
+    <p>All data is from NASA public archives. No new observations are made.</p>
+    <div class="sources">
+      <div class="source-card">
+        <h3>NASA Exoplanet Archive</h3>
+        <p>
+          Kepler Object of Interest (KOI) table via TAP. Provides archive periods, transit
+          depths, stellar parameters, and confirmed/false-positive dispositions.
+          ~2500 confirmed KOIs in the current sync.
+        </p>
+      </div>
+      <div class="source-card">
+        <h3>MAST / Lightkurve</h3>
+        <p>
+          Kepler long-cadence SAP and PDCSAP flux time series from the Mikulski Archive
+          for Space Telescopes. Data spans 2009–2013 (Kepler primary mission).
+          Up to 17 quarters per star.
+        </p>
+      </div>
+      <div class="source-card">
+        <h3>Confirmed Planets Table</h3>
+        <p>
+          NASA Exoplanet Archive confirmed planets catalogue, used to populate the
+          Backyard Tonight scheduler with verified host names, orbital periods, and
+          transit durations.
+        </p>
+      </div>
+      <div class="source-card">
+        <h3>No proprietary data</h3>
+        <p>
+          TransitLab v1 uses only public archival data. The <code>photometry/</code>
+          directory is intentionally absent — user-supplied observations are a v1.5 feature.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- How to use each tool -->
+  <section>
+    <h2>How to use this site</h2>
+    <div class="tool-list">
+
+      <div class="tool-item">
+        <div class="tool-name">Candidates — explore the hunt results</div>
+        <p>The Candidates table shows every transit detection from the most recent BLS hunt run,
+        sorted by classifier score (high = more planet-like).</p>
+        <ol>
+          <li>Use the score column to prioritize — scores above ~0.8 have good BLS SNR and catalogue-consistent features.</li>
+          <li>Click any row to open the full vetting page, which shows the phase-folded light curve, secondary eclipse check, odd/even depth comparison, and the trapezoidal fit.</li>
+          <li>The "Period" column shows the corrected period (after alias resolution), so a system found at P/2 by BLS will display its true period.</li>
+          <li>Filtering by depth is useful: signals shallower than ~1000 ppm are harder to distinguish from systematics at this stage.</li>
+        </ol>
+      </div>
+
+      <div class="tool-item">
+        <div class="tool-name">Explorer — look up any Kepler planet</div>
+        <p>The Explorer lets you fetch and fold the real Kepler light curve for any confirmed
+        planet by name or KIC number.</p>
+        <ol>
+          <li>Enter a KOI name (e.g. <em>K00001.01</em>), Kepler planet name (e.g. <em>Kepler-1b</em>), or KIC ID.</li>
+          <li>The archive period and epoch are used to fold the full 4-year light curve. What you see is real data, not a model.</li>
+          <li>Use it to understand what a good transit detection looks like — sharp ingress/egress, flat bottom, symmetric shape, no secondary eclipse.</li>
+        </ol>
+      </div>
+
+      <div class="tool-item">
+        <div class="tool-name">Backyard Tonight — plan an observation</div>
+        <p>Shows transits from confirmed exoplanet systems that are geometrically observable
+        tonight from the configured location (default: Morgan Hill, CA).</p>
+        <ol>
+          <li>Rows are ranked by transit depth × host brightness — deeper transits around brighter stars are easier to detect with amateur equipment.</li>
+          <li>The start/end/mid times are in local time. Mid-transit is the best time to be on-target for a photometric time series.</li>
+          <li>Filter by minimum depth (ppm) to focus on targets detectable with your aperture. A 6″ telescope can typically reach ~3000 ppm on V&lt;11 stars.</li>
+          <li>These are geometrically predicted times — always cross-check against ETD or ExoClock before committing to an observation run.</li>
+        </ol>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Release notes -->
+  <section>
+    <h2>Release notes</h2>
+    <div class="relnotes">
+
+      <div class="release">
+        <span class="ver">v1.0</span><span class="date">November 2025</span>
+        <ul>
+          <li>Initial public release. Full pipeline: catalogue sync → BLS hunt on 50 confirmed Kepler hosts → honest-features ML scoring → three vetting tools.</li>
+          <li><strong>Validation — Gate 1 (known-system recovery):</strong>
+            <span class="verdict"> <span class="pass">PASS 72%</span> (36/50 recovered)</span>.
+            Recovery by period band: P&lt;3d 79%, 3–10d 79%, 10–30d 62%, &gt;30d 25%.
+            Remaining misses are non-harmonic BLS aliases and long-period targets with &lt;3 transits in the search grid.
+          </li>
+          <li><strong>Validation — Gate 2 (synthetic injection):</strong>
+            <span class="verdict"> <span class="pass">PASS 95%</span> (19/20 recovered)</span>.
+            False-positive rate on quiet light curves: 0/10 = 0%.
+          </li>
+          <li>BLS alias correction: when BLS locks onto a harmonic (P/2 through P/6), the pipeline now stores the corrected true period in the database, so the Candidates page shows meaningful values rather than raw aliases.</li>
+          <li>Period search grid: 0.75 d–50 d, 2000 frequencies. Lower bound raised from 0.5 d to avoid P/6 sub-harmonic floor traps at 1.5 d, 3.0 d, etc.</li>
+          <li>Honest-features classifier: HistGradientBoosting trained on 13 NASA Archive catalogue features. Stars split by KIC ID (never by row) to prevent leakage. No features derived from the fetched light curve, ensuring the score reflects archival knowledge rather than the BLS result itself.</li>
+          <li>Architecture: GitHub Actions batch, Neon Postgres free tier, Render free-tier web service. Running cost: $0/month.</li>
+        </ul>
+      </div>
+
+      <div class="release">
+        <span class="ver">v1.5 (planned)</span>
+        <ul>
+          <li>User-supplied photometry (<code>photometry/</code> directory support): ingest FITS or CSV time series from an amateur telescope for local BLS analysis.</li>
+          <li>TESS sector support: extend the hunt to TESS 2-min cadence data via MAST.</li>
+          <li>Centroid shift vetting: flag detections whose centroid moves during transit (EB contamination indicator).</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
   <footer>
-    Candidates are signals for human vetting, not discovered planets &middot;
-    Data: NASA Exoplanet Archive &amp; MAST (Kepler/TESS)
+    <p>
+      Data: <a href="https://exoplanetarchive.ipac.caltech.edu" target="_blank">NASA Exoplanet Archive</a> &amp;
+      <a href="https://mast.stsci.edu" target="_blank">MAST (Kepler)</a> &nbsp;·&nbsp;
+      Candidates are signals for human vetting, not confirmed planet discoveries &nbsp;·&nbsp;
+      <a href="https://github.com/Kottugumada/transitlab" target="_blank">Source on GitHub</a>
+    </p>
   </footer>
+
+</div>
 
 <script>
 (async () => {
@@ -59,14 +335,14 @@
     const res = await fetch("/api/v1/health");
     if (!res.ok) throw new Error(res.statusText);
     const d = await res.json();
-    const fmtDate = s => s ? new Date(s).toLocaleDateString() : "—";
-    document.getElementById("health-row").innerHTML =
+    const fmtDate = s => s ? new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "—";
+    document.getElementById("status-bar").innerHTML =
       `DB: <span>${d.db}</span> &nbsp;·&nbsp; ` +
-      `Last sync: <span>${fmtDate(d.last_sync_at)}</span> &nbsp;·&nbsp; ` +
+      `Catalogue: <span>${fmtDate(d.last_sync_at)}</span> &nbsp;·&nbsp; ` +
       `Last hunt: <span>${fmtDate(d.last_hunt_at)}</span> &nbsp;·&nbsp; ` +
       `Model: <span>${d.model_version || "—"}</span>`;
   } catch (e) {
-    document.getElementById("health-row").textContent = "Could not reach API.";
+    document.getElementById("status-bar").textContent = "API unreachable — check Render logs.";
   }
 })();
 </script>
