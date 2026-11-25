@@ -10,7 +10,7 @@ so they remain valid if the pipeline is re-run with different parameters.
 
 import numpy as np
 
-from app.engine.fold import phase_fold
+from app.engine.fold import phase_fold, bin_fold
 
 
 def compute_vetting_features(
@@ -188,6 +188,46 @@ def _secondary_eclipse(
             best_sigma = sigma
 
     return float(best_depth_ppm), float(best_sigma)
+
+
+def odd_even_fold_data(
+    time: np.ndarray,
+    flux: np.ndarray,
+    flux_err: np.ndarray,
+    period: float,
+    epoch: float,
+    n_bins: int = 50,
+) -> tuple[dict | None, dict | None]:
+    """
+    Return (odd_fold, even_fold) each as {phase, flux, flux_err} dicts, or None
+    if fewer than 2 cadences fall in that group.
+
+    Cadences are assigned to odd or even by the transit number n =
+    round((t − epoch) / period).  For an eclipsing binary with unequal
+    primary and secondary the two groups show different depths; for a
+    planet they look identical.
+    """
+    n_transit = np.round((time - epoch) / period).astype(int)
+    odd_mask = (n_transit % 2 != 0)
+    even_mask = ~odd_mask
+
+    def _fold_subset(mask: np.ndarray) -> dict | None:
+        if mask.sum() < 2:
+            return None
+        t_s, f_s, fe_s = time[mask], flux[mask], flux_err[mask]
+        phase, fph, fe = phase_fold(t_s, f_s, fe_s, period, epoch)
+        centers, bf, be = bin_fold(phase, fph, fe, n_bins=n_bins)
+
+        def _list(arr: np.ndarray) -> list:
+            return [None if not np.isfinite(v) else float(v) for v in arr]
+
+        return {
+            "phase": [float(v) for v in centers],
+            "flux": _list(bf),
+            "flux_err": _list(be),
+        }
+
+    return _fold_subset(odd_mask), _fold_subset(even_mask)
 
 
 def _per_transit_scatter(

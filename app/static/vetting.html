@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TransitLab — Vetting</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a22;
+      --border: #2a2a3a;
+      --text: #e8e8f0;
+      --muted: #888;
+      --accent: #6e9fff;
+      --transit: #ff6b6b;
+      --fit: #ffd43b;
+      --good: #51cf66;
+      --warn: #ffd43b;
+      --bad: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0; padding: 1.5rem;
+      min-height: 100vh;
+    }
+    h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+    h1 a { color: var(--text); text-decoration: none; }
+    h1 a:hover { text-decoration: underline; }
+    .breadcrumb { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    #status { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; min-height: 1.2em; }
+    #status.error { color: var(--bad); }
+
+    /* ── Metadata row ─────────────────────────────────────────────────── */
+    .meta-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 0.6rem; margin-bottom: 1.5rem;
+    }
+    .meta-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+    }
+    .meta-card .label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta-card .value { font-size: 1.05rem; font-weight: 600; margin-top: 0.15rem; }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 700; }
+    .badge-CONFIRMED { background: rgba(81,207,102,0.2); color: var(--good); }
+    .badge-CANDIDATE  { background: rgba(255,212,59,0.2); color: var(--warn); }
+    .badge-FALSE      { background: rgba(255,107,107,0.2); color: var(--bad); }
+
+    /* ── Chart containers ─────────────────────────────────────────────── */
+    .chart-wrap {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1.25rem; margin-bottom: 1.25rem;
+    }
+    .chart-title { font-size: 0.82rem; color: var(--muted); margin-bottom: 0.6rem; }
+    canvas { width: 100% !important; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
+    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+    .no-data-msg {
+      text-align: center; color: var(--muted); font-size: 0.85rem;
+      padding: 2rem 1rem;
+    }
+
+    /* ── Feature table ────────────────────────────────────────────────── */
+    .section-title { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 1.5rem 0 0.5rem; }
+    .feature-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .feature-table th, .feature-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .feature-table th { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .feature-table td:nth-child(2) { font-weight: 700; min-width: 90px; }
+    .feature-table td:nth-child(3) { color: var(--muted); font-size: 0.85rem; max-width: 400px; }
+    .flag-ok   { color: var(--good); }
+    .flag-warn { color: var(--warn); }
+    .flag-bad  { color: var(--bad); }
+
+    footer { margin-top: 3rem; color: #555; font-size: 0.8rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+    #main { display: none; }
+  </style>
+</head>
+<body>
+  <h1><a href="/">TransitLab</a></h1>
+  <p class="breadcrumb"><a href="/candidates">← Candidates</a></p>
+
+  <div id="status">Loading…</div>
+
+  <div id="main">
+    <div class="meta-grid" id="meta-grid"></div>
+
+    <!-- Main folded LC with fit overlay -->
+    <div class="chart-wrap">
+      <div class="chart-title">Phase-folded light curve &amp; trapezoid fit — transit at phase 0</div>
+      <canvas id="lc-main"></canvas>
+    </div>
+
+    <!-- Odd / Even side by side -->
+    <div class="section-title">Odd vs Even transit comparison</div>
+    <div class="two-col" id="odd-even-row">
+      <div class="chart-wrap">
+        <div class="chart-title">Odd transits (n = 1, 3, 5, …)</div>
+        <div id="odd-container"><canvas id="lc-odd"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">Even transits (n = 0, 2, 4, …)</div>
+        <div id="even-container"><canvas id="lc-even"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Secondary eclipse zoom -->
+    <div class="chart-wrap">
+      <div class="chart-title">Secondary eclipse view — phase ±0.5 (eclipsing binary would show a dip here)</div>
+      <canvas id="lc-secondary"></canvas>
+    </div>
+
+    <!-- Vetting feature table -->
+    <div class="section-title">Vetting features</div>
+    <table class="feature-table">
+      <thead><tr><th>Feature</th><th>Value</th><th>Interpretation</th></tr></thead>
+      <tbody id="feature-tbody"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    Candidates are signals for human vetting, not discovered planets &middot;
+    Data: NASA Exoplanet Archive &amp; MAST (Kepler/TESS)
+  </footer>
+
+<script>
+// ── Utilities ──────────────────────────────────────────────────────────────
+
+const CHART_COLORS = {
+  scatter: "rgba(110,159,255,0.75)",
+  line:    "rgba(110,159,255,0.5)",
+  fit:     "rgba(255,212,59,0.95)",
+};
+
+function chartDefaults(canvasId, title, xMin, xMax) {
+  return {
+    type: "scatter",
+    options: {
+      responsive: true, maintainAspectRatio: true, aspectRatio: 3,
+      scales: {
+        x: {
+          title: { display: true, text: "Phase", color: "#888" },
+          min: xMin ?? -0.5, max: xMax ?? 0.5,
+          grid: { color: "rgba(255,255,255,0.05)" },
+          ticks: { color: "#888" },
+        },
+        y: {
+          title: { display: true, text: "Depth (ppm)", color: "#888" },
+          grid: { color: "rgba(255,255,255,0.05)" },
+          ticks: { color: "#888" },
+        },
+      },
+      plugins: {
+        legend: { display: true, labels: { color: "#888", boxWidth: 12 } },
+        tooltip: { callbacks: {
+          label: ctx => `phase ${ctx.parsed.x.toFixed(4)} · ${ctx.parsed.y.toFixed(1)} ppm`,
+        }},
+      },
+      animation: false,
+    },
+  };
+}
+
+function foldToPoints(fold) {
+  if (!fold) return [];
+  return fold.phase.map((p, i) => {
+    const f = fold.flux[i];
+    if (f == null) return null;
+    return { x: p, y: (1 - f) * 1e6 };
+  }).filter(Boolean);
+}
+
+// Compute trapezoid model on a phase grid
+function trapezoidPoints(fit, phaseArr) {
+  if (!fit || fit.fit_depth_ppm == null) return [];
+  const depth = fit.fit_depth_ppm;              // ppm
+  const duration = fit.duration ?? 0.08;        // fraction of period
+  const sr = fit.shape_ratio ?? 0.3;            // ingress_frac
+  const center = fit.center ?? 0.0;
+  const halfDur = duration / 2;
+  const ingressWidth = sr * halfDur;
+
+  return phaseArr.map(p => {
+    const x = Math.abs(p - center);
+    if (x > halfDur) return { x: p, y: 0 };
+    if (ingressWidth < 1e-9 || x < halfDur - ingressWidth) return { x: p, y: depth };
+    return { x: p, y: depth * (halfDur - x) / ingressWidth };
+  });
+}
+
+let charts = {};
+
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+function makeChart(canvasId, datasets, xMin, xMax, aspectRatio) {
+  destroyChart(canvasId);
+  const cfg = chartDefaults(canvasId, "", xMin, xMax);
+  if (aspectRatio) cfg.options.aspectRatio = aspectRatio;
+  cfg.data = { datasets };
+  charts[canvasId] = new Chart(document.getElementById(canvasId), cfg);
+}
+
+// ── Render functions ────────────────────────────────────────────────────────
+
+function renderMainFold(d) {
+  const pts = foldToPoints(d.fold_data);
+  // Dense fit overlay
+  const fitPhases = Array.from({length: 400}, (_, i) => -0.5 + i / 400);
+  const fitPts = trapezoidPoints(d.fit, fitPhases);
+
+  // Determine y-range: include 0 ± 20% padding above max depth
+  const maxDepth = Math.max(...pts.map(p => p.y), d.depth_ppm ?? 0, 100);
+
+  makeChart("lc-main", [
+    {
+      label: "Folded LC",
+      data: pts,
+      pointRadius: 3, pointBackgroundColor: CHART_COLORS.scatter,
+      showLine: true, borderColor: CHART_COLORS.line, borderWidth: 1, tension: 0,
+      order: 2,
+    },
+    {
+      label: "Trapezoid fit",
+      data: fitPts,
+      pointRadius: 0, showLine: true,
+      borderColor: CHART_COLORS.fit, borderWidth: 2.5, tension: 0,
+      order: 1,
+    },
+  ], -0.5, 0.5, 2.8);
+}
+
+function renderOddEven(d) {
+  if (!d.odd_fold || !d.even_fold) {
+    // Show placeholder message
+    for (const id of ["odd-container", "even-container"]) {
+      document.getElementById(id).innerHTML =
+        `<div class="no-data-msg">Odd/even data requires a cached light curve.<br>Re-run the hunt batch to populate.</div>`;
+    }
+    return;
+  }
+
+  // Compute common y-axis range
+  const allPts = [...foldToPoints(d.odd_fold), ...foldToPoints(d.even_fold)];
+  const yMax = Math.max(...allPts.map(p => p.y), 100) * 1.3;
+  const yMin = Math.min(...allPts.map(p => p.y), -100) - yMax * 0.1;
+
+  for (const [key, fold, canvasId] of [
+    ["lc-odd", d.odd_fold, "lc-odd"],
+    ["lc-even", d.even_fold, "lc-even"],
+  ]) {
+    const pts = foldToPoints(fold);
+    destroyChart(canvasId);
+    const cfg = chartDefaults(canvasId, "", -0.5, 0.5);
+    cfg.options.aspectRatio = 2.2;
+    cfg.options.scales.y.min = yMin;
+    cfg.options.scales.y.max = yMax;
+    cfg.data = { datasets: [{
+      label: key === "lc-odd" ? "Odd" : "Even",
+      data: pts,
+      pointRadius: 3, pointBackgroundColor: CHART_COLORS.scatter,
+      showLine: true, borderColor: CHART_COLORS.line, borderWidth: 1, tension: 0,
+    }]};
+    charts[canvasId] = new Chart(document.getElementById(canvasId), cfg);
+  }
+}
+
+function renderSecondary(d) {
+  const pts = foldToPoints(d.fold_data).filter(p => Math.abs(Math.abs(p.x) - 0.5) < 0.15);
+  makeChart("lc-secondary", [{
+    label: "Secondary phase region",
+    data: pts,
+    pointRadius: 3, pointBackgroundColor: "rgba(255,107,107,0.75)",
+    showLine: true, borderColor: "rgba(255,107,107,0.4)", borderWidth: 1, tension: 0,
+  }], 0.35, 0.65, 3.5);
+}
+
+// ── Feature table ───────────────────────────────────────────────────────────
+
+const FEATURES = [
+  {
+    key: "bls_snr", label: "BLS Signal-to-Noise",
+    fmt: v => v.toFixed(1),
+    flag: v => v > 20 ? "ok" : v > 7 ? "warn" : "bad",
+    gloss: v => v > 20 ? "Strong detection — transit clearly visible in the light curve." :
+               v > 7  ? "Moderate detection — signal exceeds 7σ noise floor." :
+                        "Weak detection — may be a noise artifact.",
+  },
+  {
+    key: "fit_depth_ppm", label: "Fitted Transit Depth", unit: "ppm",
+    fmt: v => `${Math.round(v)} ppm`,
+    flag: v => "ok",
+    gloss: v => `Trapezoid model fit depth. Compare to BLS depth and archive depth to check consistency.`,
+  },
+  {
+    key: "fit_depth_sigma", label: "Fit Depth Significance", unit: "σ",
+    fmt: v => v.toFixed(1) + " σ",
+    flag: v => v > 10 ? "ok" : v > 5 ? "warn" : "bad",
+    gloss: v => v > 10 ? "Transit depth is highly significant." :
+               v > 5  ? "Marginally significant — transit visible but uncertain." :
+                        "Depth not significant — likely noise.",
+  },
+  {
+    key: "odd_even_sigma", label: "Odd/Even Depth Difference", unit: "σ",
+    fmt: v => v.toFixed(2) + " σ",
+    flag: v => v < 3 ? "ok" : v < 5 ? "warn" : "bad",
+    gloss: v => v > 5 ? "Transits alternate deep/shallow (>" + v.toFixed(1) + "σ) — classic eclipsing binary signature." :
+               v > 3 ? "Mild odd/even asymmetry — investigate further." :
+                       "Odd and even transits match — consistent with a single body.",
+  },
+  {
+    key: "secondary_depth_ppm", label: "Secondary Eclipse Depth", unit: "ppm",
+    fmt: v => `${Math.round(v)} ppm`,
+    flag: v => v < 500 ? "ok" : v < 1500 ? "warn" : "bad",
+    gloss: v => v > 1500 ? "Deep secondary at phase ±0.5 — typical of an eclipsing binary." :
+               v > 500  ? "Modest secondary — may indicate a hot Jupiter's day-side emission." :
+                          "No significant secondary — consistent with a transiting planet.",
+  },
+  {
+    key: "secondary_sigma", label: "Secondary Significance", unit: "σ",
+    fmt: v => v.toFixed(1) + " σ",
+    flag: v => v < 3 ? "ok" : v < 5 ? "warn" : "bad",
+    gloss: v => v > 5 ? "Secondary eclipse is highly significant." :
+               v > 3  ? "Secondary eclipse marginally significant." :
+                        "No significant secondary eclipse detected.",
+  },
+  {
+    key: "shape_ratio", label: "Transit Shape (ingress/total)",
+    fmt: v => v.toFixed(2),
+    flag: v => v < 0.3 ? "ok" : v < 0.6 ? "warn" : "bad",
+    gloss: v => v < 0.3 ? "U-shaped flat-bottomed transit — planet-like." :
+               v < 0.6 ? "Moderate ingress fraction — shape ambiguous." :
+                         "V-shaped transit — grazing eclipsing binary suspected.",
+  },
+  {
+    key: "n_transits", label: "Transit Events Observed",
+    fmt: v => `${Math.round(v)}`,
+    flag: v => v >= 5 ? "ok" : v >= 2 ? "warn" : "bad",
+    gloss: v => v >= 5 ? `${Math.round(v)} transit events observed — good phase coverage.` :
+               v >= 2 ? `${Math.round(v)} transit events — basic verification possible.` :
+                        "Only 1 transit observed — periodicity unconfirmed.",
+  },
+  {
+    key: "depth_scatter", label: "Per-Transit Depth Scatter",
+    fmt: v => v.toFixed(3),
+    flag: v => v < 0.2 ? "ok" : v < 0.5 ? "warn" : "bad",
+    gloss: v => v < 0.2 ? "Transit depths are consistent — expected for a stable planet." :
+               v < 0.5 ? "Some depth variation — could be a stellar spot crossing or a blend." :
+                         "High depth scatter — blended source or variable star suspected.",
+  },
+];
+
+function renderFeatureTable(d) {
+  const v = d.vetting || {};
+  const tbody = document.getElementById("feature-tbody");
+  tbody.innerHTML = FEATURES.map(feat => {
+    const val = v[feat.key] ?? (d[feat.key] ?? null);
+    if (val == null) {
+      return `<tr><td>${feat.label}</td><td class="flag-ok">—</td><td class="feature-gloss" style="color:var(--muted)">Not available</td></tr>`;
+    }
+    const flagClass = `flag-${feat.flag(val)}`;
+    return `<tr>
+      <td>${feat.label}</td>
+      <td class="${flagClass}">${feat.fmt(val)}</td>
+      <td>${feat.gloss(val)}</td>
+    </tr>`;
+  }).join("");
+}
+
+// ── Metadata cards ──────────────────────────────────────────────────────────
+
+function renderMeta(d) {
+  const dispRaw = d.disposition || "UNKNOWN";
+  const dispClass = dispRaw.includes("CONFIRMED") ? "CONFIRMED" :
+                    dispRaw.includes("CANDIDATE")  ? "CANDIDATE" : "FALSE";
+  const scoreStr = d.catalogue_model_score != null
+    ? `${(d.catalogue_model_score * 100).toFixed(1)}%` : "—";
+
+  const cards = [
+    { label: "KOI",         value: d.kepoi_name || `KIC ${d.kepid}` },
+    { label: "Kepler Name", value: d.kepler_name || "—" },
+    { label: "Mission",     value: d.mission },
+    { label: "Disposition", value: `<span class="badge badge-${dispClass}">${dispRaw}</span>` },
+    { label: "BLS Period",  value: d.period != null ? `${d.period.toFixed(5)} d` : "—" },
+    { label: "Duration",    value: d.duration_h != null ? `${d.duration_h.toFixed(2)} h` : "—" },
+    { label: "BLS Depth",   value: d.depth_ppm != null ? `${Math.round(d.depth_ppm)} ppm` : "—" },
+    { label: "BLS SNR",     value: d.bls_snr != null ? d.bls_snr.toFixed(1) : "—" },
+    { label: "Model Score", value: `<span style="color:var(--accent)">${scoreStr}</span>`, note: "catalogue-model estimate" },
+  ];
+
+  document.getElementById("meta-grid").innerHTML = cards.map(c =>
+    `<div class="meta-card">
+      <div class="label">${c.label}${c.note ? ` <span title="${c.note}" style="cursor:help;color:var(--muted)">ⓘ</span>` : ""}</div>
+      <div class="value">${c.value}</div>
+    </div>`
+  ).join("");
+}
+
+// ── Main entry ──────────────────────────────────────────────────────────────
+
+async function loadDetection(id) {
+  const statusEl = document.getElementById("status");
+  statusEl.textContent = "Loading vetting data…";
+  statusEl.className = "";
+
+  try {
+    const res = await fetch(`/api/v1/candidates/${id}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    const d = await res.json();
+
+    document.title = `TransitLab — ${d.kepoi_name || "KIC " + d.kepid}`;
+    renderMeta(d);
+    renderMainFold(d);
+    renderOddEven(d);
+    renderSecondary(d);
+    renderFeatureTable(d);
+
+    statusEl.textContent = "";
+    document.getElementById("main").style.display = "block";
+  } catch (e) {
+    statusEl.textContent = `Error: ${e.message}`;
+    statusEl.className = "error";
+  }
+}
+
+const params = new URLSearchParams(location.search);
+const detId = params.get("id");
+if (detId) {
+  loadDetection(detId);
+} else {
+  const statusEl = document.getElementById("status");
+  statusEl.textContent = "No detection ID in URL. Add ?id=<n> or navigate from the Candidates page.";
+  statusEl.className = "error";
+}
+</script>
+</body>
+</html>

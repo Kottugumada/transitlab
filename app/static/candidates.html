@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TransitLab — Candidates</title>
+  <style>
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a22;
+      --border: #2a2a3a;
+      --text: #e8e8f0;
+      --muted: #888;
+      --accent: #6e9fff;
+      --good: #51cf66;
+      --warn: #ffd43b;
+      --bad: #ff6b6b;
+      --hover: #22223a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0; padding: 1.5rem; min-height: 100vh;
+    }
+    h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+    h1 a { color: var(--text); text-decoration: none; }
+    h1 a:hover { text-decoration: underline; }
+    .tagline { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+
+    /* ── Controls ─────────────────────────────────────────────────────── */
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 0.75rem;
+      align-items: center; margin-bottom: 1.25rem;
+    }
+    .controls label { font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.4rem; }
+    select, input[type=range] {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text);
+      border-radius: 5px; padding: 0.35rem 0.6rem; font-size: 0.85rem;
+    }
+    select { cursor: pointer; }
+    input[type=range] { padding: 0; width: 120px; cursor: pointer; }
+    #score-val { font-weight: 700; color: var(--accent); min-width: 2rem; }
+
+    /* ── Summary row ──────────────────────────────────────────────────── */
+    #summary { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.75rem; min-height: 1.2em; }
+
+    /* ── Table ────────────────────────────────────────────────────────── */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    thead th {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0.55rem 0.75rem; text-align: left; white-space: nowrap;
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); font-weight: 600; position: sticky; top: 0;
+      cursor: pointer; user-select: none;
+    }
+    thead th:hover { color: var(--accent); }
+    thead th.sorted { color: var(--accent); }
+    tbody tr { cursor: pointer; border-bottom: 1px solid rgba(42,42,58,0.6); transition: background 0.1s; }
+    tbody tr:hover { background: var(--hover); }
+    tbody td { padding: 0.55rem 0.75rem; white-space: nowrap; }
+
+    .badge { display: inline-block; padding: 0.12rem 0.45rem; border-radius: 3px; font-size: 0.75rem; font-weight: 700; }
+    .badge-CONFIRMED { background: rgba(81,207,102,0.2); color: var(--good); }
+    .badge-CANDIDATE  { background: rgba(255,212,59,0.2); color: var(--warn); }
+    .badge-FALSE      { background: rgba(255,107,107,0.2); color: var(--bad); }
+
+    .score-bar {
+      display: inline-block; height: 8px; border-radius: 4px;
+      background: var(--accent); vertical-align: middle; margin-right: 0.5rem;
+      min-width: 2px;
+    }
+
+    #status { color: var(--muted); font-size: 0.88rem; min-height: 1.2em; }
+    #status.error { color: var(--bad); }
+
+    footer { margin-top: 3rem; color: #555; font-size: 0.8rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1><a href="/">TransitLab</a></h1>
+  <p class="tagline">Transit candidates ranked by classifier score — click any row to open the vetting page</p>
+
+  <div class="controls">
+    <label>
+      Min score
+      <input type="range" id="min-score" min="0" max="100" value="0" step="5">
+      <span id="score-val">0%</span>
+    </label>
+    <label>
+      Sort by
+      <select id="sort">
+        <option value="score">Classifier score</option>
+        <option value="snr">BLS SNR</option>
+        <option value="period">Period</option>
+        <option value="depth">Depth</option>
+      </select>
+    </label>
+    <label>
+      Mission
+      <select id="mission">
+        <option value="">All</option>
+        <option value="Kepler">Kepler</option>
+        <option value="TESS">TESS</option>
+      </select>
+    </label>
+  </div>
+
+  <div id="summary"></div>
+  <div id="status">Loading…</div>
+
+  <div class="tbl-wrap">
+    <table id="cand-table" style="display:none">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>KOI / Target</th>
+          <th>Disposition</th>
+          <th>Period (d)</th>
+          <th>Depth (ppm)</th>
+          <th>BLS SNR</th>
+          <th>N Transits</th>
+          <th>Model Score ↓</th>
+        </tr>
+      </thead>
+      <tbody id="cand-tbody"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    Candidates are signals for human vetting, not discovered planets &middot;
+    Data: NASA Exoplanet Archive &amp; MAST (Kepler/TESS)
+  </footer>
+
+<script>
+let allRows = [];
+let sortCol = "score";
+let sortAsc = false;
+
+function dispClass(d) {
+  if (!d) return "FALSE";
+  if (d.includes("CONFIRMED")) return "CONFIRMED";
+  if (d.includes("CANDIDATE"))  return "CANDIDATE";
+  return "FALSE";
+}
+
+function scoreBar(score) {
+  if (score == null) return "";
+  const pct = Math.max(2, Math.round(score * 100));
+  return `<span class="score-bar" style="width:${pct}px"></span>`;
+}
+
+function fmt(v, digits, suffix) {
+  if (v == null) return "—";
+  return v.toFixed(digits) + (suffix || "");
+}
+
+function buildRow(item, rank) {
+  const disp = item.disposition || "—";
+  const dc = dispClass(item.disposition);
+  const score = item.catalogue_model_score;
+  return `<tr onclick="goVet(${item.id})">
+    <td>${rank}</td>
+    <td>${item.kepoi_name || `KIC ${item.kepid}` || "—"}</td>
+    <td><span class="badge badge-${dc}">${disp}</span></td>
+    <td>${fmt(item.period, 4)}</td>
+    <td>${item.depth_ppm != null ? Math.round(item.depth_ppm) : "—"}</td>
+    <td>${fmt(item.bls_snr, 1)}</td>
+    <td>${item.n_transits != null ? Math.round(item.n_transits) : "—"}</td>
+    <td>${scoreBar(score)}${score != null ? (score * 100).toFixed(1) + "%" : "—"}</td>
+  </tr>`;
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById("cand-tbody");
+  tbody.innerHTML = rows.map((r, i) => buildRow(r, i + 1)).join("");
+  document.getElementById("cand-table").style.display = rows.length ? "" : "none";
+}
+
+function goVet(id) {
+  window.location.href = `/vetting?id=${id}`;
+}
+
+async function fetchCandidates() {
+  const scoreVal = parseInt(document.getElementById("min-score").value) / 100;
+  const sort     = document.getElementById("sort").value;
+  const mission  = document.getElementById("mission").value;
+
+  document.getElementById("status").textContent = "Loading…";
+  document.getElementById("status").className = "";
+
+  const params = new URLSearchParams({ sort, limit: 500 });
+  if (scoreVal > 0) params.set("min_score", scoreVal.toFixed(2));
+  if (mission) params.set("mission", mission);
+
+  try {
+    const res = await fetch(`/api/v1/candidates?${params}`);
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+    const data = await res.json();
+    allRows = data.items;
+    document.getElementById("summary").textContent =
+      `${data.total} detection${data.total !== 1 ? "s" : ""} · showing ${allRows.length}`;
+    renderTable(allRows);
+    document.getElementById("status").textContent = "";
+  } catch (e) {
+    document.getElementById("status").textContent = `Error: ${e.message}`;
+    document.getElementById("status").className = "error";
+  }
+}
+
+// Controls
+document.getElementById("min-score").addEventListener("input", e => {
+  document.getElementById("score-val").textContent = e.target.value + "%";
+});
+document.getElementById("min-score").addEventListener("change", fetchCandidates);
+document.getElementById("sort").addEventListener("change", fetchCandidates);
+document.getElementById("mission").addEventListener("change", fetchCandidates);
+
+fetchCandidates();
+</script>
+</body>
+</html>

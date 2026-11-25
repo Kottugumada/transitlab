@@ -5,25 +5,70 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TransitLab</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 4rem auto; padding: 0 1rem; }
-    h1 { font-size: 2rem; }
-    .tagline { color: #666; }
-    nav a { margin-right: 1.5rem; text-decoration: none; color: #0070f3; }
-    footer { margin-top: 4rem; color: #888; font-size: 0.85rem; border-top: 1px solid #eee; padding-top: 1rem; }
+    :root {
+      --bg: #0f0f13; --surface: #1a1a22; --border: #2a2a3a;
+      --text: #e8e8f0; --muted: #888; --accent: #6e9fff;
+    }
+    * { box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 2rem 1.5rem; min-height: 100vh; }
+    h1 { margin: 0 0 0.3rem; font-size: 2rem; }
+    .tagline { color: var(--muted); margin-bottom: 2.5rem; }
+    .nav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2.5rem; }
+    .nav-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1.25rem 1.5rem; text-decoration: none; color: var(--text);
+      transition: border-color 0.15s, background 0.15s; display: block;
+    }
+    .nav-card:hover { border-color: var(--accent); background: #22223a; }
+    .nav-card .title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 0.4rem; }
+    .nav-card .desc { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+    .health { font-size: 0.82rem; color: var(--muted); }
+    .health span { color: var(--text); }
+    footer { margin-top: 3rem; color: #555; font-size: 0.8rem; border-top: 1px solid var(--border); padding-top: 1rem; }
   </style>
 </head>
 <body>
   <h1>TransitLab</h1>
   <p class="tagline">Exoplanet transit search &amp; vetting — powered by NASA Kepler/TESS data</p>
-  <nav>
-    <a href="/candidates">Candidates</a>
-    <a href="/explorer">Explorer</a>
-    <a href="/backyard">Backyard Tonight</a>
-  </nav>
-  <p>Database and API are being set up. Check <code>/api/v1/health</code> for status.</p>
+
+  <div class="nav-grid">
+    <a href="/candidates" class="nav-card">
+      <div class="title">Candidates</div>
+      <div class="desc">Ranked list of transit detections from the BLS hunt. Click any row to open the full vetting page.</div>
+    </a>
+    <a href="/explorer" class="nav-card">
+      <div class="title">Explorer</div>
+      <div class="desc">Look up any confirmed Kepler planet and see its real phase-folded light curve at the archive period.</div>
+    </a>
+    <a href="/backyard" class="nav-card">
+      <div class="title">Backyard Tonight</div>
+      <div class="desc">Known exoplanet transits observable tonight from Morgan Hill, ranked by depth and host brightness.</div>
+    </a>
+  </div>
+
+  <div class="health" id="health-row">Checking system status…</div>
+
   <footer>
     Candidates are signals for human vetting, not discovered planets &middot;
     Data: NASA Exoplanet Archive &amp; MAST (Kepler/TESS)
   </footer>
+
+<script>
+(async () => {
+  try {
+    const res = await fetch("/api/v1/health");
+    if (!res.ok) throw new Error(res.statusText);
+    const d = await res.json();
+    const fmtDate = s => s ? new Date(s).toLocaleDateString() : "—";
+    document.getElementById("health-row").innerHTML =
+      `DB: <span>${d.db}</span> &nbsp;·&nbsp; ` +
+      `Last sync: <span>${fmtDate(d.last_sync_at)}</span> &nbsp;·&nbsp; ` +
+      `Last hunt: <span>${fmtDate(d.last_hunt_at)}</span> &nbsp;·&nbsp; ` +
+      `Model: <span>${d.model_version || "—"}</span>`;
+  } catch (e) {
+    document.getElementById("health-row").textContent = "Could not reach API.";
+  }
+})();
+</script>
 </body>
 </html>
