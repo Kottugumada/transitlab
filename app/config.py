@@ -15,9 +15,10 @@ class Settings(BaseSettings):
     hunt_max_targets: int = 50
 
     # BLS period search grid (days)
-    # Lower bound: 0.5 d catches ultra-short-period planets
+    # Lower bound: 0.75 d avoids the P/6 sub-harmonic floor trap seen when
+    # period_min=0.5 divides evenly into common short periods (1.5, 3.0, 4.5 d).
     # Upper bound: 1/3 of baseline avoids spurious long-period fits with few transits
-    bls_period_min_days: float = 0.5
+    bls_period_min_days: float = 0.75
     # bls_period_max_days is computed at runtime as baseline / 3
 
     # Detrending window (multiples of transit duration)

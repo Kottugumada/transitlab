@@ -107,6 +107,7 @@ def period_recovered(
         (0.5, "half"),    (2.0, "double"),
         (3.0, "triple"),  (4.0, "quadruple"),
         (0.333, "third"), (0.25, "quarter"),
+        (0.2, "fifth"),   (0.167, "sixth"),
     ]:
         ref = archive_period * alias
         if abs(bls_period - ref) / ref < tolerance:
